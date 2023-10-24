@@ -71,15 +71,17 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReplyApp(
-    replyHomeUIState: ReplyHomeUIState,
     windowSize: WindowWidthSizeClass,
-    foldingDevicePosture: DevicePosture
+    foldingDevicePosture: DevicePosture,
+    replyHomeUIState: ReplyHomeUIState
 ) {
     /**
-     * This will help us select the type of navigation and content type depending on window size and
-     * fold state available
+     * This will help us select type of navigation and content type depending on window size and
+     * fold state of the device.
+     *
+     * In the state of folding device If it's half fold in BookPosture we want to avoid content
+     * at the crease/hinge
      */
-
     val navigationType: ReplyNavigationType
     val contentType: ReplyContentType
 
@@ -90,8 +92,7 @@ fun ReplyApp(
         }
         WindowWidthSizeClass.Medium -> {
             navigationType = ReplyNavigationType.NAVIGATION_RAIL
-            contentType = if (foldingDevicePosture is DevicePosture.BookPosture
-                || foldingDevicePosture is DevicePosture.Separating) {
+            contentType = if (foldingDevicePosture != DevicePosture.NormalPosture) {
                 ReplyContentType.LIST_AND_DETAIL
             } else {
                 ReplyContentType.LIST_ONLY
@@ -110,7 +111,7 @@ fun ReplyApp(
             contentType = ReplyContentType.LIST_ONLY
         }
     }
-    // You will add navigation info here
+
     ReplyNavigationWrapperUI(navigationType, contentType, replyHomeUIState)
 }
 
@@ -118,7 +119,7 @@ fun ReplyApp(
 @Composable
 private fun ReplyNavigationWrapperUI(
     navigationType: ReplyNavigationType,
-    contentType: ReplyHomeUIState,
+    contentType: ReplyContentType,
     replyHomeUIState: ReplyHomeUIState
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -126,11 +127,13 @@ private fun ReplyNavigationWrapperUI(
     val selectedDestination = ReplyDestinations.INBOX
 
     if (navigationType == ReplyNavigationType.PERMANENT_NAVIGATION_DRAWER) {
-        PermanentNavigationDrawer(drawerContent = {
-            PermanentDrawerSheet {
-                NavigationDrawerContent(selectedDestination)
+        PermanentNavigationDrawer(
+            drawerContent = {
+                PermanentDrawerSheet {
+                    NavigationDrawerContent(selectedDestination)
+                }
             }
-        }) {
+        ) {
             ReplyAppContent(navigationType, contentType, replyHomeUIState)
         }
     } else {
@@ -140,11 +143,14 @@ private fun ReplyNavigationWrapperUI(
                     NavigationDrawerContent(
                         selectedDestination,
                         onDrawerClicked = {
-                            scope.launch { drawerState.close() }
+                            scope.launch {
+                                drawerState.close()
+                            }
                         }
                     )
                 }
-            }, drawerState = drawerState
+            },
+            drawerState = drawerState
         ) {
             ReplyAppContent(
                 navigationType, contentType, replyHomeUIState,
@@ -158,7 +164,6 @@ private fun ReplyNavigationWrapperUI(
     }
 }
 
-
 @Composable
 fun ReplyAppContent(
     navigationType: ReplyNavigationType,
@@ -166,35 +171,28 @@ fun ReplyAppContent(
     replyHomeUIState: ReplyHomeUIState,
     onDrawerClicked: () -> Unit = {}
 ) {
-    Row(modifier = Modifier
-        .fillMaxSize()) {
+    Row(modifier = Modifier.fillMaxSize()) {
+        AnimatedVisibility(visible = navigationType == ReplyNavigationType.NAVIGATION_RAIL) {
+            ReplyNavigationRail(
+                onDrawerClicked = onDrawerClicked
+            )
+        }
         Column(modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.inverseOnSurface)
         ) {
-            AnimatedVisibility(visible = navigationType == ReplyNavigationType.NAVIGATION_RAIL) {
-                ReplyNavigationRail(
-                    onDrawerClicked = onDrawerClicked
+            if (contentType == ReplyContentType.LIST_AND_DETAIL) {
+                ReplyListAndDetailContent(
+                    replyHomeUIState = replyHomeUIState,
+                    modifier = Modifier.weight(1f),
                 )
+            } else {
+                ReplyListOnlyContent(replyHomeUIState = replyHomeUIState, modifier = Modifier.weight(1f))
             }
-            Column (modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.inverseOnSurface)
-            ) {
-                if (contentType == ReplyContentType.LIST_AND_DETAIL) {
-                    ReplyListAndDetailContent(
-                        replyHomeUIState = replyHomeUIState,
-                        modifier = Modifier.weight(1f),
-                    )
-                } else {
-                    ReplyListOnlyContent(replyHomeUIState = replyHomeUIState, modifier = Modifier.weight(1f))
-                }
-                AnimatedVisibility(visible = navigationType == ReplyNavigationType.BOTTOM_NAVIGATION) {
-                    ReplyBottomNavigationBar()
-                }
+
+            AnimatedVisibility(visible = navigationType == ReplyNavigationType.BOTTOM_NAVIGATION) {
+                ReplyBottomNavigationBar()
             }
-            ReplyListOnlyContent(replyHomeUIState = replyHomeUIState, modifier = Modifier.weight(1f))
-            ReplyBottomNavigationBar()
         }
     }
 }
